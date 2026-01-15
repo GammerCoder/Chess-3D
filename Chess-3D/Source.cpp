@@ -29,10 +29,45 @@ int posval(int a,int b) {
 
 //initiation of basic board
 void basicboard(uint64_t b) {
-    WhiteKing = 1ull << posval(1, 5);
-    WhiteQueen = 1ull << posval(1, 4);
-    WhiteBishop = 1ull << posval(1, 3) | 1ull << posval(1, 6);
+    WhiteKing = 1ull << posval(1, 5); board |= WhiteKing;
+    WhiteQueen = 1ull << posval(1, 4); board |= WhiteQueen;
+    WhiteBishop = 1ull << posval(1, 3) | 1ull << posval(1, 6); board |= WhiteBishop;
+    WhiteKnight = 1ull << posval(1, 2) | 1ull << posval(1, 7); board |= WhiteKnight;
+    WhiteRook = 1ull << posval(1, 1) | 1ull << posval(1, 8); board |= WhiteRook;
+    //WhitePawn = 0x000000000000FF00ULL; board |= WhitePawn;
+    int white[8];
+    for (int i = 0; i <= 7; i++) {
+        
+    }
+    
+
+    BlackKing = 1ull << posval(8, 5); board |= BlackKing;
+    BlackQueen = 1ull << posval(8, 4); board |= BlackQueen;
+    BlackBishop = 1ull << posval(8, 3) | 1ull << posval(8, 6); board |= BlackBishop;
+    BlackKnight = 1ull << posval(8, 2) | 1ull << posval(8, 7); board |= BlackKnight;
+    BlackRook = 1ull << posval(8, 1) | 1ull << posval(8, 8); board |= BlackRook;
+    BlackPawn = 0x000000000000FF00ULL; board |= BlackPawn;
+
 }
+
+//pawen class
+class pawn {
+    public:
+        int pos;
+        bool isWhite;
+        pawn(int a,bool b) {
+            pos = a;
+            isWhite = b;
+        }
+        void draw() {
+            sf::RectangleShape pawnrect({ 100.f,100.f });
+            if(isWhite)
+            pawnrect.setFillColor(sf::Color::White);
+            else
+                pawnrect.setFillColor(sf::Color::Black);
+        }
+};
+
 
 //Board display console
 void printBoard(uint64_t b) {
@@ -56,7 +91,7 @@ int main() {
     }
     printBoard(board);
 
-
+    
     while (window.isOpen())
     {
         while (const std::optional event = window.pollEvent())
@@ -65,6 +100,7 @@ int main() {
                 window.close();
         }
         window.clear();
+
             sf::Vector2u winsiz = window.getSize();
             float boardw = winsiz.x * 0.7;
             float boardz = std::min(boardw, (float)winsiz.y);
