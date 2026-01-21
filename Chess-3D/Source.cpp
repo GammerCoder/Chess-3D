@@ -6,9 +6,6 @@ uint64_t board = 0ULL;
 
 //White Pieces
 uint64_t WhiteKing;
-
-//sf::Texture wking("white-king",false,{100,100});
-
 uint64_t WhiteQueen;
 uint64_t WhiteRook;
 uint64_t WhiteKnight;
@@ -26,6 +23,40 @@ uint64_t BlackBishop;
 uint64_t BlackPawn;
 uint64_t BlackP;
 
+//Strcct  pawn
+struct piece {
+    sf::Sprite pie;
+    int square= -1;
+    piece(sf::Texture& tex, int sq, sf::Vector2f pos) :pie(tex), square(sq) {
+        pie.setPosition(pos);
+        pie.setScale({ 0.825f,0.825f });
+    }
+};
+
+// PTS
+int pixelToSquare(sf::Vector2f pos, int tile) {
+    int file = pos.x / tile;
+    int rank = 7 - (pos.y / tile);
+    return rank * 8 + file;
+}
+//STP
+sf::Vector2f squareToPixel(int square, int tileSize) {
+    int file = square % 8;          // column: 0–7
+    int rank = 7 - (square / 8);    // row: flip board for white
+    return sf::Vector2f(
+        file * tileSize,
+        rank * tileSize
+    );
+}
+
+
+
+//Grid snapp
+int grip = 100;
+sf::Vector2f snapp(sf::Vector2f pos) {
+    return{ std::round(pos.x / grip) * grip,
+            std::round(pos.y / grip) * grip };
+}
 
 //Move possible
 struct move {
@@ -44,6 +75,7 @@ int revpos2(int a) {
 
 //Update 
 void update() {
+    board = 0ull;
     WhiteP |= WhiteKing;
     WhiteP |= WhiteKnight;
     WhiteP |= WhiteBishop;
@@ -248,6 +280,9 @@ int main() {
     sf::RenderWindow window(sf::VideoMode({ 1200, 800 }), "Chess");
     bool select = 0;
     bool isdragging= false;
+    piece* slt = nullptr;
+    bool done = false;
+    sf::Vector2f offset;
     if (select == false) {
         basicboard(board);
     }
@@ -267,11 +302,171 @@ int main() {
     sf::Texture wq("../pieces-png/white-queen.png");
     sf::Texture bq("../pieces-png/black-queen.png");
 
-    pawnlegal(posval(2, 4),moves, WhiteP, BlackP);
-    for (auto mo : moves) {
-        //std::cout << revpos(mo.to)<<revpos2(mo.to) << "  ";
-        std::cout << mo.to << "  ";
+    // Board width
+    sf::Vector2u winsiz = window.getSize();
+    float boardw = winsiz.x * 0.7;
+    float boardz = std::min(boardw, (float)winsiz.y);
+    float tilesize = boardz / 8.0f;
+
+    // Draw
+    std::vector<piece> wpas;
+    std::vector<piece> bpawns;
+    //Pawns
+    float x = 0, y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhitePawn >> sq) & 1) {
+                wpas.emplace_back(wp,sq,sf::Vector2f(x,y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
     }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackPawn >> sq) & 1) {
+                wpas.emplace_back(bp, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    //Rooks
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhiteRook >> sq) & 1) {
+                wpas.emplace_back(wr, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackRook >> sq) & 1) {
+                wpas.emplace_back(br, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    //Bishop
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhiteBishop >> sq) & 1) {
+                wpas.emplace_back(wb, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackBishop >> sq) & 1) {
+                wpas.emplace_back(bb, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    //Knight
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhiteKnight >> sq) & 1) {
+                wpas.emplace_back(wkn, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackKnight >> sq) & 1) {
+                wpas.emplace_back(bkn, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    //Queen
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhiteQueen >> sq) & 1) {
+                wpas.emplace_back(wq, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackQueen >> sq) & 1) {
+                wpas.emplace_back(bq, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    //King
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((WhiteKing >> sq) & 1) {
+                wpas.emplace_back(wk, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+    y = 0;
+    for (int i = 7; i >= 0; i--) {
+        x = 0;
+        for (int j = 0; j < 8; j++) {
+            int sq = i * 8 + j;
+            if ((BlackKing >> sq) & 1) {
+                wpas.emplace_back(bk, sq, sf::Vector2f(x, y));
+            }
+            x = x + tilesize;
+        }
+        y = y + tilesize;
+    }
+
+    //pawnlegal(posval(2, 4),moves, WhiteP, BlackP);
+    //for (auto mo : moves) {
+        //std::cout << revpos(mo.to)<<revpos2(mo.to) << "  ";
+        //std::cout << mo.to << "  ";
+    //}
 
     
     while (window.isOpen())
@@ -279,10 +474,7 @@ int main() {
         
         window.clear();
 
-            sf::Vector2u winsiz = window.getSize();
-            float boardw = winsiz.x * 0.7;
-            float boardz = std::min(boardw, (float)winsiz.y);
-            float tilesize = boardz / 8.0f;
+            
             for (int i = 0; i < 8; i++) {
                 for (int j = 0; j < 8; j++) {
                     sf::RectangleShape Tile({ tilesize,tilesize });
@@ -296,192 +488,7 @@ int main() {
                     window.draw(Tile);
                 }
             }
-            //Pawns
-            float x = 0, y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhitePawn >> sq) & 1) {
-                        sf::Sprite wpawn(wp);
-                        wpawn.setScale({ 0.7f,0.7f });
-                        wpawn.setPosition({ x,y });
-                        window.draw(wpawn);
-                    }
-                    x = x + tilesize;
-                }
-                y = y+ tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackPawn >> sq) & 1) {
-                        sf::Sprite bpawn(bp);
-                        bpawn.setScale({ 0.7f,0.7f });
-                        bpawn.setPosition({ x,y });
-                        window.draw(bpawn);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            //Rooks
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhiteRook >> sq) & 1) {
-                        sf::Sprite wrook(wr);
-                        wrook.setScale({ 0.7f,0.7f });
-                        wrook.setPosition({ x,y });
-                        window.draw(wrook);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackRook >> sq) & 1) {
-                        sf::Sprite brook(br);
-                        brook.setScale({ 0.7f,0.7f });
-                        brook.setPosition({ x,y });
-                        window.draw(brook);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            //Bishop
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhiteBishop >> sq) & 1) {
-                        sf::Sprite wbish(wb);
-                        wbish.setScale({ 0.7f,0.7f });
-                        wbish.setPosition({ x,y });
-                        window.draw(wbish);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackBishop >> sq) & 1) {
-                        sf::Sprite bbish(bb);
-                        bbish.setScale({ 0.7f,0.7f });
-                        bbish.setPosition({ x,y });
-                        window.draw(bbish);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            //Knight
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhiteKnight >> sq) & 1) {
-                        sf::Sprite wknit(wkn);
-                        wknit.setScale({ 0.7f,0.7f });
-                        wknit.setPosition({ x,y });
-                        window.draw(wknit);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackKnight >> sq) & 1) {
-                        sf::Sprite bknit(bkn);
-                        bknit.setScale({ 0.7f,0.7f });
-                        bknit.setPosition({ x,y });
-                        window.draw(bknit);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            //Queen
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhiteQueen >> sq) & 1) {
-                        sf::Sprite wquee(wq);
-                        wquee.setScale({ 0.7f,0.7f });
-                        wquee.setPosition({ x,y });
-                        window.draw(wquee);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackQueen >> sq) & 1) {
-                        sf::Sprite bquee(bq);
-                        bquee.setScale({ 0.7f,0.7f });
-                        bquee.setPosition({ x,y });
-                        window.draw(bquee);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            //King
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((WhiteKing >> sq) & 1) {
-                        sf::Sprite wking(wk);
-                        wking.setScale({ 0.7f,0.7f });
-                        wking.setPosition({ x,y });
-                        window.draw(wking);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
-            y = 0;
-            for (int i = 7; i >= 0; i--) {
-                x = 0;
-                for (int j = 0; j < 8; j++) {
-                    int sq = i * 8 + j;
-                    if ((BlackKing >> sq) & 1) {
-                        sf::Sprite bking(bk);
-                        bking.setScale({ 0.7f,0.7f });
-                        bking.setPosition({ x,y });
-                        window.draw(bking);
-                    }
-                    x = x + tilesize;
-                }
-                y = y + tilesize;
-            }
+            
             
 
             while (const std::optional event = window.pollEvent())
@@ -492,15 +499,55 @@ int main() {
                 // Mouse catch
                 if (event->is<sf::Event::MouseButtonPressed>()) {
                     const auto& e = event->getIf<sf::Event::MouseButtonPressed>();
+                    if (isdragging)break;
                     if (e->button == sf::Mouse::Button::Left) {
                         sf::Vector2f m =getMousePos(window);
-                        if(wpawn)
-                        sf::Sprite spt(wk);
-                        window.draw(spt);
+                        for (auto &spr : wpas) {
+                            if (spr.pie.getGlobalBounds().contains(m)) {
+                                isdragging = true;
+                                slt = &spr;
+                                offset = spr.pie.getPosition() - m;
+                            }
+                        }
+                    }
+                }
+                //Mouse drag
+                if (isdragging && slt) {
+                    sf::Vector2f m = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                    if (slt) {
+                        slt->pie.setPosition(snapp(m + offset));
+                    }
+                }
+                if (event->is<sf::Event::MouseButtonReleased>()) {
+                    const auto& e = event->getIf<sf::Event::MouseButtonReleased>();
+                    if (e->button == sf::Mouse::Button::Left && isdragging) {
+                        int from = slt->square;
+                        int to = pixelToSquare(slt->pie.getPosition(), tilesize);
+                        pawnlegal(from, moves, WhiteP, BlackP);
+                        for (auto mov : moves) {
+                            if (mov.to == to) {
+                                WhitePawn &= ~(1ULL << from);
+                                WhitePawn |= (1ull << to);
+                                slt->square = to;
+                                done = true;
+                                break;
+                            }
+                        }
+                        if (!done) {
+                            slt->pie.setPosition(squareToPixel(from, tilesize));
+                        }
+                        done = false;
+                        moves.clear();
+                        update();
+                        printBoard(board);
+                        isdragging = false;
+                        slt =nullptr;
                     }
                 }
             }
-
+            for (auto &i : wpas) {
+                window.draw(i.pie);
+            }
         window.display();
     }
 
