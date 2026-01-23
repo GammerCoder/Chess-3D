@@ -76,6 +76,9 @@ int revpos2(int a) {
 //Update 
 void update() {
     board = 0ull;
+    WhiteP = 0ull;
+    BlackP = 0ull;
+
     WhiteP |= WhiteKing;
     WhiteP |= WhiteKnight;
     WhiteP |= WhiteBishop;
@@ -115,38 +118,35 @@ bool samefilewarp(int from, int to) {
 
 //King move
 int kingm[] = { 9,8,7,1,-1,-9,-8,-7 };
-void kinglegal(uint64_t k, int from, std::vector<move>& moves,uint64_t own) {
-    uint64_t king = k;
-    //int from = __builtin_ctzll(king);
+void kinglegal( int from, std::vector<move>& moves,uint64_t own,uint64_t enmy) {
     for (auto i : kingm) {
         int to = from + i;
         if (to < 0 || to>63)continue;
         if (samefilewarp(from, to))continue;
-        if (!(own & (1ull << to)))continue;
+        if (own & (1ull << to))continue;
         //Make cpature 
         moves.push_back({ to,from });
+        if (enmy & (1ull << to))continue;
     }
 }
 
 //Knight move
 int Knightm[] = { 17,15,10,6,-17,-15,-10,-6 };
-void knightlegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own) {
-    uint64_t knight = k;
-    //int from = __builtin_ctzll(king);
+void knightlegal( int from, std::vector<move>& moves, uint64_t own,uint64_t enmy) {
     for (auto i : Knightm) {
         int to = from + i;
         if (to < 0 || to>63)continue;
         if (samefilewarp(from, to))continue;
-        if (!(own & (1ull << to)))continue;
+        if ((own & (1ull << to)))continue;
         //Make cpature 
         moves.push_back({ to,from });
+        if (enmy & (1ull << to))continue;
     }
 }
 
 //Rook Move
 int rookm[] = { 1,8,-8,-1 };
-void RookLegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own,uint64_t enmy) {
-    uint64_t rook = k;
+void RookLegal( int from, std::vector<move>& moves, uint64_t own,uint64_t enmy) {
     int ofrom = from;
     for (int dir : rookm) {
         int next =  from + dir;
@@ -170,8 +170,7 @@ void RookLegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own,uint
 
 //Bishop move
 int bism[] = { 7,9,-7,-9 };
-void BishopLegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own, uint64_t enmy) {
-    uint64_t rook = k;
+void BishopLegal( int from, std::vector<move>& moves, uint64_t own, uint64_t enmy) {
     int ofrom = from;
     for (int dir : bism) {
         int next = from + dir;
@@ -189,8 +188,7 @@ void BishopLegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own, u
 }
 
 //Queen move
-void QueenLegal(uint64_t k, int from, std::vector<move>& moves, uint64_t own, uint64_t enmy) {
-    uint64_t rook = k;
+void QueenLegal( int from, std::vector<move>& moves, uint64_t own, uint64_t enmy) {
     int ofrom = from;
     for (int dir : kingm) {
         int next = from + dir;
@@ -224,7 +222,7 @@ void pawnlegalB(int from, std::vector<move>&moves, uint64_t own, uint64_t enmy) 
     for (auto dis : pawnb) {
         int to = from + dis;
         if (to < 0)continue;
-        if (from < 47 && dis == 16)continue;
+        if (from < 47 && dis == -16)continue;
         if (own & (1ull << to))continue;
         if (!(enmy & 1ull << to) && (dis == -7 || dis == -9))continue;
         moves.push_back({ to,from });
@@ -271,6 +269,58 @@ void printBoard(uint64_t b) {
             std::cout << ((b >> sq) & 1) << " ";
         }
         std::cout << "\n";
+    }
+}
+
+//Checkker
+uint64_t* Checker(int from, std::vector<move>& m) {
+    if (WhitePawn &(1ull<< from)) {
+        pawnlegal(from, m, WhiteP, BlackP);
+        return &WhitePawn;
+    }
+    if (BlackPawn & (1ull << from)) {
+        pawnlegalB(from, m, BlackP, WhiteP);
+        return &BlackPawn;
+    }
+    if (BlackKing & (1ull << from)) {
+        kinglegal(from, m, BlackP, WhiteP);
+        return &BlackKing;
+    }
+    if (WhiteKing & (1ull << from)) {
+        kinglegal(from, m, WhiteP, BlackP);
+        return &WhiteKing;
+    }
+    if (WhiteKnight & (1ull << from)) {
+        knightlegal(from, m, WhiteP, BlackP);
+        return &WhiteKnight;
+    }
+    if (BlackKnight & (1ull << from)) {
+        knightlegal(from, m, BlackP, WhiteP);
+        return &BlackKnight;
+    }
+    if (BlackRook & (1ull << from)) {
+        RookLegal(from, m, BlackP, WhiteP);
+        return &BlackRook;
+    }
+    if (WhiteRook & (1ull << from)) {
+        RookLegal(from, m, WhiteP, BlackP);
+        return &WhiteRook;
+    }
+    if (WhiteBishop & (1ull << from)) {
+        BishopLegal(from, m, WhiteP, BlackP);
+        return &WhiteBishop;
+    }
+    if (BlackBishop & (1ull << from)) {
+        BishopLegal(from, m, BlackP, WhiteP);
+        return &BlackBishop;
+    }
+    if (WhiteQueen & (1ull << from)) {
+        QueenLegal(from, m, WhiteP, BlackP);
+        return &WhiteQueen;
+    }
+    if (BlackQueen & (1ull << from)) {
+        QueenLegal(from, m, BlackP, WhiteP);
+        return &BlackQueen;
     }
 }
 
@@ -461,33 +511,32 @@ int main() {
         }
         y = y + tilesize;
     }
-
-    //pawnlegal(posval(2, 4),moves, WhiteP, BlackP);
-    //for (auto mo : moves) {
-        //std::cout << revpos(mo.to)<<revpos2(mo.to) << "  ";
-        //std::cout << mo.to << "  ";
-    //}
-
     
+    //Tile sprites
+    std::vector<sf::RectangleShape>tle;
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            sf::RectangleShape Tile({ tilesize,tilesize });
+            Tile.setPosition({ i * tilesize, j * tilesize });
+            if ((i + j) % 2 == 0) {
+                Tile.setFillColor(sf::Color(238, 238, 210));
+            }
+            else {
+                Tile.setFillColor(sf::Color(118, 150, 56));
+            }
+            tle.push_back(Tile);
+        }
+    }
+
     while (window.isOpen())
     {
         
         window.clear();
 
             
-            for (int i = 0; i < 8; i++) {
-                for (int j = 0; j < 8; j++) {
-                    sf::RectangleShape Tile({ tilesize,tilesize });
-                    Tile.setPosition({ i * tilesize, j * tilesize });
-                    if ((i + j) % 2 == 0) {
-                        Tile.setFillColor(sf::Color(238, 238, 210));
-                    }
-                    else {
-                        Tile.setFillColor(sf::Color(118,150,56));
-                    }
-                    window.draw(Tile);
-                }
-            }
+        for (sf::RectangleShape jj : tle) {
+            window.draw(jj);
+        }
             
             
 
@@ -507,6 +556,11 @@ int main() {
                                 isdragging = true;
                                 slt = &spr;
                                 offset = spr.pie.getPosition() - m;
+                                int from = slt->square;
+                                Checker(from, moves);
+                                for (auto mo : moves) {
+                                    std::cout << mo.to<<"  ";
+                                }
                             }
                         }
                     }
@@ -518,16 +572,19 @@ int main() {
                         slt->pie.setPosition(snapp(m + offset));
                     }
                 }
+
+                //Mouse release
                 if (event->is<sf::Event::MouseButtonReleased>()) {
                     const auto& e = event->getIf<sf::Event::MouseButtonReleased>();
                     if (e->button == sf::Mouse::Button::Left && isdragging) {
                         int from = slt->square;
                         int to = pixelToSquare(slt->pie.getPosition(), tilesize);
-                        pawnlegal(from, moves, WhiteP, BlackP);
+                        uint64_t* temp=Checker(from, moves);
                         for (auto mov : moves) {
+                            //std::cout << mov.to;
                             if (mov.to == to) {
-                                WhitePawn &= ~(1ULL << from);
-                                WhitePawn |= (1ull << to);
+                                *temp &= ~(1ull << from);
+                                *temp |= (1ull << to);
                                 slt->square = to;
                                 done = true;
                                 break;
@@ -535,6 +592,7 @@ int main() {
                         }
                         if (!done) {
                             slt->pie.setPosition(squareToPixel(from, tilesize));
+                            
                         }
                         done = false;
                         moves.clear();
