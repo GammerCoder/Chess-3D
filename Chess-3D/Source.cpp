@@ -27,7 +27,8 @@ uint64_t BlackP;
 struct piece {
     sf::Sprite pie;
     int square= -1;
-    piece(sf::Texture& tex, int sq, sf::Vector2f pos) :pie(tex), square(sq) {
+    bool alive;
+    piece(sf::Texture& tex, int sq, sf::Vector2f pos,bool a) :pie(tex), square(sq),alive(a) {
         pie.setPosition(pos);
         pie.setScale({ 0.825f,0.825f });
     }
@@ -49,8 +50,6 @@ sf::Vector2f squareToPixel(int square, int tileSize) {
     );
 }
 
-
-
 //Grid snapp
 int grip = 100;
 sf::Vector2f snapp(sf::Vector2f pos) {
@@ -62,6 +61,7 @@ sf::Vector2f snapp(sf::Vector2f pos) {
 struct move {
     int to;
     int from;
+    bool capt;
 };
 
 //revPos
@@ -108,6 +108,30 @@ void update() {
     board |= BlackPawn;
 }
 
+//RevUpdate
+void revupdate() {
+     WhiteKing &= WhiteP;
+     WhiteKnight &= WhiteP;
+     WhiteBishop &= WhiteP;
+     WhiteRook &= WhiteP;
+     WhiteQueen &= WhiteP;
+     WhitePawn &= WhiteP;
+
+    BlackKing  &= BlackP;
+    BlackQueen  &= BlackP;
+    BlackKnight  &= BlackP;
+    BlackBishop &= BlackP;
+    BlackRook  &= BlackP;
+    BlackPawn  &= BlackP;
+}
+
+//Capture
+void Capture(uint64_t &enmy, int to) {
+    enmy &= ~(1ull << to);
+    revupdate();
+    update();
+}
+
 //warp
 bool samefilewarp(int from, int to) {
     int fromfile = from % 8;
@@ -120,13 +144,15 @@ bool samefilewarp(int from, int to) {
 int kingm[] = { 9,8,7,1,-1,-9,-8,-7 };
 void kinglegal( int from, std::vector<move>& moves,uint64_t own,uint64_t enmy) {
     for (auto i : kingm) {
+        bool c = false;
         int to = from + i;
         if (to < 0 || to>63)continue;
         if (samefilewarp(from, to))continue;
         if (own & (1ull << to))continue;
         //Make cpature 
-        moves.push_back({ to,from });
-        if (enmy & (1ull << to))continue;
+        if (enmy & (1ull << to))c=true;
+        moves.push_back({ to,from,c });
+        
     }
 }
 
@@ -135,12 +161,14 @@ int Knightm[] = { 17,15,10,6,-17,-15,-10,-6 };
 void knightlegal( int from, std::vector<move>& moves, uint64_t own,uint64_t enmy) {
     for (auto i : Knightm) {
         int to = from + i;
+        bool c = false;
         if (to < 0 || to>63)continue;
         if (samefilewarp(from, to))continue;
         if ((own & (1ull << to)))continue;
         //Make cpature 
-        moves.push_back({ to,from });
-        if (enmy & (1ull << to))continue;
+        if (enmy & (1ull << to))c=true;
+
+        moves.push_back({ to,from,c });
     }
 }
 
@@ -150,12 +178,19 @@ void RookLegal( int from, std::vector<move>& moves, uint64_t own,uint64_t enmy) 
     int ofrom = from;
     for (int dir : rookm) {
         int next =  from + dir;
+        bool c = false;
+        bool brk = false;
         while (true) {
             if (next < 0 || next>63)break;
             if (own & (1ull << next))break;
             if (samefilewarp(from, next))break;
-            moves.push_back({ next,from });
-            if (enmy & (1ull << next))break;
+            if (enmy & (1ull << next)) {
+                c = true;
+                brk = true;
+            }
+            moves.push_back({ next,from,c });
+            if (brk)break;
+
             next = dir + next;
             if (dir == -1) {
                 from--;
@@ -174,12 +209,18 @@ void BishopLegal( int from, std::vector<move>& moves, uint64_t own, uint64_t enm
     int ofrom = from;
     for (int dir : bism) {
         int next = from + dir;
+        bool c = false;
+        bool brk = false;
         while (true) {
             if (next < 0 || next>63)break;
             if (own & (1ull << next))break;
             if (samefilewarp(from, next))break;
-            moves.push_back({ next,from });
-            if (enmy & (1ull << next))break;
+            if (enmy & (1ull << next)) {
+                c = true;
+                brk = true;
+            }
+            moves.push_back({ next,from,c });
+            if (brk)break;
             next = dir + next;
             from = from + dir;
         }
@@ -192,12 +233,18 @@ void QueenLegal( int from, std::vector<move>& moves, uint64_t own, uint64_t enmy
     int ofrom = from;
     for (int dir : kingm) {
         int next = from + dir;
+        bool c = false;
+        bool brk = false;
         while (true) {
             if (next < 0 || next>63)break;
             if (own & (1ull << next))break;
             if (samefilewarp(from, next))break;
-            moves.push_back({ next,from });
-            if (enmy & (1ull << next))break;
+            if (enmy & (1ull << next)) {
+                c = true;
+                brk = true;
+            }
+            moves.push_back({ next,from,c });
+            if (brk)break;
             next = dir + next;
             from = from + dir;
         }
@@ -211,21 +258,25 @@ int pawnb[4] = { -8,-16,-7,-9 };
 void pawnlegal(int from, std::vector<move>&moves,uint64_t own,uint64_t enmy) {
     for (auto dis : pawn) {
         int to = from + dis;
+        bool c = false;
         if (to > 63)continue;
         if (from < 8 || from > 15 && dis == 16)continue;
         if (own & (1ull << to))continue;
         if (!(enmy & 1ull << to) && (dis == 7 || dis == 9))continue;
-        moves.push_back({ to,from });
+        if ((enmy & 1ull << to) && (dis == 7 || dis == 9))c=true;
+        moves.push_back({ to,from,c });
     }
 }
 void pawnlegalB(int from, std::vector<move>&moves, uint64_t own, uint64_t enmy) {
     for (auto dis : pawnb) {
         int to = from + dis;
+        bool c = false;
         if (to < 0)continue;
         if (from < 47 && dis == -16)continue;
         if (own & (1ull << to))continue;
         if (!(enmy & 1ull << to) && (dis == -7 || dis == -9))continue;
-        moves.push_back({ to,from });
+        if ((enmy & 1ull << to) && (dis == -7 || dis == -9))c=true;
+        moves.push_back({ to,from,c });
     }
 }
 
@@ -339,6 +390,8 @@ int main() {
     printBoard(board);
     std::vector<move>moves;
 
+    int turn= 1;
+
     sf::Texture wk("../pieces-png/white-king.png");
     sf::Texture bk("../pieces-png/black-king.png");
     sf::Texture wp("../pieces-png/white-pawn.png");
@@ -368,7 +421,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhitePawn >> sq) & 1) {
-                wpas.emplace_back(wp,sq,sf::Vector2f(x,y));
+                wpas.emplace_back(wp,sq,sf::Vector2f(x,y),true);
             }
             x = x + tilesize;
         }
@@ -380,7 +433,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackPawn >> sq) & 1) {
-                wpas.emplace_back(bp, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(bp, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -393,7 +446,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteRook >> sq) & 1) {
-                wpas.emplace_back(wr, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(wr, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -405,7 +458,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackRook >> sq) & 1) {
-                wpas.emplace_back(br, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(br, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -418,7 +471,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteBishop >> sq) & 1) {
-                wpas.emplace_back(wb, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(wb, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -430,7 +483,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackBishop >> sq) & 1) {
-                wpas.emplace_back(bb, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(bb, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -443,7 +496,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteKnight >> sq) & 1) {
-                wpas.emplace_back(wkn, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(wkn, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -455,7 +508,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackKnight >> sq) & 1) {
-                wpas.emplace_back(bkn, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(bkn, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -468,7 +521,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteQueen >> sq) & 1) {
-                wpas.emplace_back(wq, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(wq, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -480,7 +533,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackQueen >> sq) & 1) {
-                wpas.emplace_back(bq, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(bq, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -493,7 +546,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteKing >> sq) & 1) {
-                wpas.emplace_back(wk, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(wk, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -505,7 +558,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackKing >> sq) & 1) {
-                wpas.emplace_back(bk, sq, sf::Vector2f(x, y));
+                wpas.emplace_back(bk, sq, sf::Vector2f(x, y),true);
             }
             x = x + tilesize;
         }
@@ -530,16 +583,6 @@ int main() {
 
     while (window.isOpen())
     {
-        
-        window.clear();
-
-            
-        for (sf::RectangleShape jj : tle) {
-            window.draw(jj);
-        }
-            
-            
-
             while (const std::optional event = window.pollEvent())
             {
                 if (event->is<sf::Event::Closed>())
@@ -557,10 +600,17 @@ int main() {
                                 slt = &spr;
                                 offset = spr.pie.getPosition() - m;
                                 int from = slt->square;
-                                Checker(from, moves);
+                                if (!((turn % 2 == 0 && BlackP & (1ull << from)) || (turn % 2 != 0 && WhiteP & (1ull << from)))) {
+                                    slt = nullptr;
+                                    isdragging = false;
+                                    std::cout << "Invlaid chance" << std::endl;
+                                }
+
+                                /*Checker(from, moves);
                                 for (auto mo : moves) {
                                     std::cout << mo.to<<"  ";
                                 }
+                                std::cout << std::endl;*/
                             }
                         }
                     }
@@ -577,34 +627,55 @@ int main() {
                 if (event->is<sf::Event::MouseButtonReleased>()) {
                     const auto& e = event->getIf<sf::Event::MouseButtonReleased>();
                     if (e->button == sf::Mouse::Button::Left && isdragging) {
-                        int from = slt->square;
-                        int to = pixelToSquare(slt->pie.getPosition(), tilesize);
-                        uint64_t* temp=Checker(from, moves);
-                        for (auto mov : moves) {
-                            //std::cout << mov.to;
-                            if (mov.to == to) {
-                                *temp &= ~(1ull << from);
-                                *temp |= (1ull << to);
-                                slt->square = to;
-                                done = true;
-                                break;
+                        if (slt) {
+                            int from = slt->square;
+                            int to = pixelToSquare(slt->pie.getPosition(), tilesize);
+                            uint64_t* temp = Checker(from, moves);
+                            for (auto mov : moves) {
+                                if (mov.to == to) {
+                                    if (mov.capt) {
+                                        Capture(WhiteP, to);
+                                        Capture(BlackP, to);
+                                        for (auto& i : wpas) {
+                                            if (i.square == to) {
+                                                i.alive = false;
+                                                i.square = -1;
+                                                i.pie.setPosition({ 900,0 });
+                                            }
+                                        }
+                                    }
+                                    std::cout << mov.capt << std::endl << turn << std::endl;
+
+                                    *temp &= ~(1ull << from);
+                                    *temp |= (1ull << to);
+                                    slt->square = to;
+                                    done = true;
+                                    turn++;
+                                    break;
+                                }
                             }
+                            if (!done) {
+                                slt->pie.setPosition(squareToPixel(from, tilesize));
+                            }
+                            done = false;
+                            moves.clear();
+                            update();
+                            printBoard(board);
+                            isdragging = false;
+                            slt = nullptr;
                         }
-                        if (!done) {
-                            slt->pie.setPosition(squareToPixel(from, tilesize));
-                            
-                        }
-                        done = false;
-                        moves.clear();
-                        update();
-                        printBoard(board);
-                        isdragging = false;
-                        slt =nullptr;
                     }
                 }
             }
+
+
             for (auto &i : wpas) {
-                window.draw(i.pie);
+                if (i.alive) {
+                    window.draw(i.pie);
+                }
+            }
+            for (sf::RectangleShape jj : tle) {
+                window.draw(jj);
             }
         window.display();
     }
