@@ -2,7 +2,18 @@
 #include "SFML/Graphics.hpp"
 #include <cstdint>
 #include <iostream>
+#include<SFML/Network.hpp>
 uint64_t board = 0ULL;
+
+//Netwok packets
+enum class Pakcettype : uint8_t
+{
+    Move = 01,
+    chat = 02,
+    join = 3,
+    leave = 4
+    
+};
 
 //White Pieces
 uint64_t WhiteKing;
@@ -28,7 +39,8 @@ struct piece {
     sf::Sprite pie;
     int square= -1;
     bool alive;
-    piece(sf::Texture& tex, int sq, sf::Vector2f pos,bool a) :pie(tex), square(sq),alive(a) {
+    int val;
+    piece(sf::Texture& tex, int sq, sf::Vector2f pos,bool a,int v) :pie(tex), square(sq),alive(a),val(v) {
         pie.setPosition(pos);
         pie.setScale({ 0.825f,0.825f });
     }
@@ -163,11 +175,14 @@ void knightlegal( int from, std::vector<move>& moves, uint64_t own,uint64_t enmy
         int to = from + i;
         bool c = false;
         if (to < 0 || to>63)continue;
-        if (samefilewarp(from, to))continue;
+        int fromfile = from % 8;
+        int tofile = to % 8;    
+        if(abs(fromfile - tofile) > 2){
+            
+            continue;
+        }
         if ((own & (1ull << to)))continue;
-        //Make cpature 
         if (enmy & (1ull << to))c=true;
-
         moves.push_back({ to,from,c });
     }
 }
@@ -376,7 +391,35 @@ uint64_t* Checker(int from, std::vector<move>& m) {
 }
 
 
+//Bar pos update
+void bar2(sf::RectangleShape& a,int val) {
+    val = val * 55;
+    sf::Vector2f b = a.getSize();
+    a.setSize({ 20,b.y + val });
+
+}
+
 int main() {
+
+    sf::TcpSocket socket;
+    sf::IpAddress serevr({127,0,0,1});
+
+    if (socket.connect(serevr, 54000) != sf::Socket::Status::Done) {
+        std::cout << " Failed to connect to server\n";
+        return 1;
+    }
+
+    std::cout << " Connected to server\n";
+
+    sf::Packet packet;
+    packet << std::string("Hello from client!");
+
+    if (socket.send(packet) != sf::Socket::Status::Done) {
+        std::cout << "Failed to send packet\n";
+        return 1;
+    }
+
+    std::cout << " Message sent to server\n";
 
     sf::RenderWindow window(sf::VideoMode({ 1200, 800 }), "Chess");
     bool select = 0;
@@ -391,6 +434,7 @@ int main() {
     std::vector<move>moves;
 
     int turn= 1;
+    bool redraw = true;
 
     sf::Texture wk("../pieces-png/white-king.png");
     sf::Texture bk("../pieces-png/black-king.png");
@@ -410,10 +454,23 @@ int main() {
     float boardw = winsiz.x * 0.7;
     float boardz = std::min(boardw, (float)winsiz.y);
     float tilesize = boardz / 8.0f;
+    float evlbar_posx = boardw*0.95 ;
+
 
     // Draw
     std::vector<piece> wpas;
-    std::vector<piece> bpawns;
+    sf::RectangleShape evlbar({20.f,boardz-5});
+    evlbar.setPosition({ evlbar_posx,5 });
+    evlbar.setFillColor(sf::Color::White);
+    evlbar.setOutlineColor(sf::Color(152,162,162,255));
+    evlbar.setOutlineThickness(4.f);
+
+    sf::RectangleShape evlbar2({ 20.f,boardz/2 });
+    evlbar2.setPosition({ evlbar_posx,5 });
+    evlbar2.setFillColor(sf::Color::Blue);
+    evlbar2.setOutlineColor(sf::Color(152, 162, 162, 255));
+    evlbar2.setOutlineThickness(4.f);
+
     //Pawns
     float x = 0, y = 0;
     for (int i = 7; i >= 0; i--) {
@@ -421,7 +478,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhitePawn >> sq) & 1) {
-                wpas.emplace_back(wp,sq,sf::Vector2f(x,y),true);
+                wpas.emplace_back(wp,sq,sf::Vector2f(x,y),true,1);
             }
             x = x + tilesize;
         }
@@ -433,7 +490,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackPawn >> sq) & 1) {
-                wpas.emplace_back(bp, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(bp, sq, sf::Vector2f(x, y),true,-1);
             }
             x = x + tilesize;
         }
@@ -446,7 +503,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteRook >> sq) & 1) {
-                wpas.emplace_back(wr, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(wr, sq, sf::Vector2f(x, y),true,5);
             }
             x = x + tilesize;
         }
@@ -458,7 +515,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackRook >> sq) & 1) {
-                wpas.emplace_back(br, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(br, sq, sf::Vector2f(x, y),true,-5);
             }
             x = x + tilesize;
         }
@@ -471,7 +528,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteBishop >> sq) & 1) {
-                wpas.emplace_back(wb, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(wb, sq, sf::Vector2f(x, y),true,3);
             }
             x = x + tilesize;
         }
@@ -483,7 +540,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackBishop >> sq) & 1) {
-                wpas.emplace_back(bb, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(bb, sq, sf::Vector2f(x, y),true,-3);
             }
             x = x + tilesize;
         }
@@ -496,7 +553,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteKnight >> sq) & 1) {
-                wpas.emplace_back(wkn, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(wkn, sq, sf::Vector2f(x, y),true,3);
             }
             x = x + tilesize;
         }
@@ -508,7 +565,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackKnight >> sq) & 1) {
-                wpas.emplace_back(bkn, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(bkn, sq, sf::Vector2f(x, y),true,-3);
             }
             x = x + tilesize;
         }
@@ -521,7 +578,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteQueen >> sq) & 1) {
-                wpas.emplace_back(wq, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(wq, sq, sf::Vector2f(x, y),true,10);
             }
             x = x + tilesize;
         }
@@ -533,7 +590,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackQueen >> sq) & 1) {
-                wpas.emplace_back(bq, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(bq, sq, sf::Vector2f(x, y),true,-10);
             }
             x = x + tilesize;
         }
@@ -546,7 +603,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((WhiteKing >> sq) & 1) {
-                wpas.emplace_back(wk, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(wk, sq, sf::Vector2f(x, y),true,15);
             }
             x = x + tilesize;
         }
@@ -558,7 +615,7 @@ int main() {
         for (int j = 0; j < 8; j++) {
             int sq = i * 8 + j;
             if ((BlackKing >> sq) & 1) {
-                wpas.emplace_back(bk, sq, sf::Vector2f(x, y),true);
+                wpas.emplace_back(bk, sq, sf::Vector2f(x, y),true,-15);
             }
             x = x + tilesize;
         }
@@ -606,11 +663,11 @@ int main() {
                                     std::cout << "Invlaid chance" << std::endl;
                                 }
 
-                                /*Checker(from, moves);
+                                Checker(from, moves);
                                 for (auto mo : moves) {
                                     std::cout << mo.to<<"  ";
                                 }
-                                std::cout << std::endl;*/
+                                std::cout << std::endl;
                             }
                         }
                     }
@@ -620,6 +677,7 @@ int main() {
                     sf::Vector2f m = window.mapPixelToCoords(sf::Mouse::getPosition(window));
                     if (slt) {
                         slt->pie.setPosition(snapp(m + offset));
+                        redraw = true;
                     }
                 }
 
@@ -641,6 +699,7 @@ int main() {
                                                 i.alive = false;
                                                 i.square = -1;
                                                 i.pie.setPosition({ 900,0 });
+                                                bar2(evlbar2, i.val);
                                             }
                                         }
                                     }
@@ -663,21 +722,28 @@ int main() {
                             printBoard(board);
                             isdragging = false;
                             slt = nullptr;
+                            redraw = true;
                         }
                     }
                 }
             }
 
+            if (!redraw) {
+                continue;
+            }
 
+            for (sf::RectangleShape jj : tle) {
+                window.draw(jj);
+            }
             for (auto &i : wpas) {
                 if (i.alive) {
                     window.draw(i.pie);
                 }
-            }
-            for (sf::RectangleShape jj : tle) {
-                window.draw(jj);
-            }
+            }            
+            window.draw(evlbar);
+            window.draw(evlbar2);
         window.display();
+        redraw = false;
     }
 
 	return 0;
